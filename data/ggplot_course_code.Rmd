@@ -1,0 +1,825 @@
+---
+title: 'Tidyverse course: ggplot Code'
+output:
+  word_document:
+    toc: yes
+  html_notebook:
+    toc: yes
+    tov_float: yes
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+Introduction
+============
+
+This document contains all of the code shown in the slides for the ggplot section of the tidyverse course.  A separate document has the answers to the exercises used in the course.
+
+```{r}
+library("tidyverse")
+library("ggplot2")
+
+msleep
+```
+```{r}
+class(msleep)
+```
+
+Remove NA values from vore
+
+```{r}
+msleep %>% filter(!is.na(vore)) -> msleep.clean
+msleep.clean
+```
+
+
+# Scatterplot
+
+## Basic graph
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(x=bodywt, y=sleep_total)
+)+geom_point() -> scatterplot
+
+scatterplot
+```
+
+If we don't want to save the filtered version we can pipe straight from the filter into ggplot without saving.
+
+```{r}
+msleep %>% 
+  filter(!is.na(vore)) %>%
+    ggplot(
+      aes(x=bodywt, y=sleep_total)
+  )+geom_point()
+```
+
+### with colours 
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(x=bodywt, y=sleep_total, colour=vore)
+)+geom_point()
+```
+
+### this also works
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(x=bodywt, y=sleep_total)
+)+geom_point(aes(colour=vore))
+```
+
+
+### with log: log axis
+
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(x=bodywt, y=sleep_total, colour=vore)
+)+geom_point() -> scatterplot
+
+scatterplot+scale_x_log10()
+```
+
+### with log: log values 
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(x=log(bodywt), y=sleep_total,colour=vore)
+)+geom_point()
+```
+
+
+### with bigger points and axes and graph titles
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(x=log(bodywt), y=sleep_total,colour=vore)
+) +
+  geom_point(size=4) +
+  xlab("Log Body Weight") + 
+  ylab("Total Hours Sleep") + 
+  ggtitle("Some Sleep Data")  -> scatterplot
+
+scatterplot
+```
+
+### change the general theme
+
+```{r}
+theme_set(theme_bw(base_size=18))
+
+scatterplot+theme(plot.title = element_text(hjust = 0.5)) -> scatterplot
+scatterplot
+
+```
+
+
+### change colour scheme and ticks on x-axis and y-axis and improve legend
+
+This adds to the previous plot rather than recreating it.
+```{r}
+scatterplot +
+  scale_colour_brewer(
+    palette="Set1", 
+    name="Trophic levels", 
+    labels=c("Carnivore", "Herbivore", "Insectivore", "Omnivore")
+  ) +
+  scale_x_continuous(breaks=-5:10) +
+  scale_y_continuous(breaks=seq(0,20, 2)) -> scatterplot
+scatterplot
+
+```
+
+
+### change colours manually
+```{r}
+scatterplot +
+  scale_color_manual(
+    values=c("chocolate3", "chartreuse3", "darkorchid2","cyan3"),
+    name="Trophic levels", 
+    labels=c("Carnivore", "Herbivore", "Insectivore", "Omnivore")
+  ) -> scatterplot
+
+scatterplot
+```
+
+Tadah! So beautiful :-)
+
+
+## Exercise 1
+
+The file up_down_expression.txt contains an expression comparison dataset with
+an extra column which classifies the rows into one of 3 groups (up, down or unchanging). 
+
+
+Load: "up_down_expression.txt "
+Check the structure of the file
+Plot a scatterplot geom_point() with: 
+up in red, 
+down in blue 
+unchanging in grey
+Main title: "Expression data"
+Colour legend: "Down, Unchanging and Up"
+Axis labels: "Condition 1" and "Condition 2"
+
+
+```{r}
+expression <- read_tsv("up_down_expression.txt")
+expression
+
+```
+
+
+```{r}
+expression.scatter<-ggplot(expression, aes(Condition1, Condition2, colour=State))+
+  geom_point()+
+  scale_colour_manual(values=c("blue", "grey", "red"),
+                      name="State", 
+    labels=c("Down", "Unchanging", "Up"))+
+  xlab("Condition 1") + 
+  ylab("Condition 2") + 
+  ggtitle("Expression data")+
+  theme(plot.title = element_text(hjust = 0.5))
+  
+expression.scatter
+
+
+```
+
+
+
+Now, let's try another type a graph: a stripchart. It is similar to a scatterplot but the x variable is qualitative or categorical in nature.
+
+
+# Stripchart
+
+```{r}
+  ggplot(
+    msleep.clean, 
+    aes(vore, sleep_total)
+  )+geom_point()
+```
+
+
+### jitter, bigger points and colours
+```{r}
+ggplot(
+  msleep.clean,
+  aes(vore,sleep_total, colour=vore)
+) + geom_point(size=4,position="jitter")
+```
+
+### control of the jitter 
+```{r}
+ggplot(
+  msleep.clean, 
+  aes(vore, sleep_total, colour=vore)
+) +
+  geom_jitter(
+    width = 0.2,
+    size=4,
+    height = 0
+  ) -> stripchart
+stripchart
+
+```
+
+
+### add a line for the mean and a title for the y-axis 
+```{r}
+stripchart +
+  stat_summary(
+    fun.y="mean",
+    geom='errorbar', 
+    aes(ymin=..y.., ymax=..y..), 
+    width=0.6, 
+    size=1.5,
+    colour="grey25"
+  ) -> stripchart
+
+stripchart
+```
+
+Little piece of code to calculate mean and SEm the tidyverse way.
+
+```{r}
+msleep.clean %>%
+  group_by(vore) %>%
+    summarise(sleep=mean(sleep_total), sem=sd(sleep_total)/sqrt(n()))
+```
+
+
+###  pretty changes 
+```{r}
+stripchart +
+  ylab("Total Hours Sleep") +
+  xlab("Trophic Levels") +
+  ggtitle("Some Sleep Data") +
+  scale_y_continuous(breaks=seq(0, 20, 2)) +
+  scale_x_discrete(labels=c("Carnivore", "Herbivore", "Insectivore", "Omnivore")) +
+  theme(legend.position = "none") -> stripchart
+
+stripchart
+```
+
+### change order of levels on x axis, center the title and different colour scheme
+```{r}
+stripchart +
+  scale_colour_brewer(palette="Dark2")+
+  scale_x_discrete(
+    limit=c("insecti", "herbi", "carni", "omni"),
+    labels=c("Insectivore", "Herbivore", "Carnivore", "Omnivore"))+
+      theme(plot.title = element_text(hjust = 0.5)
+  ) -> stripchart
+stripchart
+```
+
+```{r}
+library("ggthemes")
+stripchart+
+  theme_wsj()+
+  scale_colour_wsj("colors6")+
+  theme(legend.position = "none")+
+  theme(plot.title = element_text(hjust = 0.5))
+  
+
+```
+
+Now, let's try some other data. DownloadFestival datacontains the hygiene scores (0-5) of 810 concert goers over three days of music festival.
+
+
+### Reading a file and pre-processing it.
+
+```{r}
+read_csv("DownloadFestival.csv") -> festival.data
+festival.data
+```
+
+```{r}
+max(festival.data$day1)
+```
+
+# Histogram
+
+### Histogram day 1
+
+```{r}
+ggplot(
+  festival.data, 
+  aes(day1)
+)+geom_histogram()
+```
+
+Let's make it prettier.
+
+```{r}
+ggplot(
+  festival.data, 
+  aes(day1)
+)+geom_histogram(binwidth=0.3)
+
+```
+
+Now change colour and add titles to axes.
+
+```{r}
+ggplot(
+  festival.data, 
+  aes(day1)
+)+geom_histogram(binwidth=0.3, color="black", fill="yellow")+
+  labs(x="Score", y="Counts")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  ggtitle("Hygiene at Day 1") -> Day1Histogram
+Day1Histogram
+
+```
+
+Now we want to plot all 3 days per gender. So we need to reshape the file. We are also going to remove the NAs.
+
+```{r}
+
+festival.data %>%
+  gather(day,score,-ticknumb,-gender) -> festival.data.stack
+
+festival.data.stack %>% filter(!is.na(score)) -> festival.data.stack
+festival.data.stack
+
+```
+
+```{r}
+ggplot(festival.data.stack,aes(score))+
+  geom_histogram(binwidth=0.3, color="black", fill="yellow")+
+  labs(x="Hygiene score", y="Counts")+
+  facet_grid(gender~day) -> histogram.3days
+histogram.3days
+
+```
+
+It is possible to modify the labels of the facets. here are some examples below.
+
+```{r}
+histogram.3days<-ggplot(festival.data.stack,aes(score))+
+  geom_histogram(binwidth=0.3, color="black", fill="yellow")+
+  labs(x="Hygiene score", y="Counts")+
+  facet_grid(gender~day)+
+  theme(strip.text.x = element_text(size = 16, colour = "purple", face="bold"),
+        strip.text.y = element_text(size=12, face="bold"))
+histogram.3days
+```
+
+Density plots as below.
+
+```{r}
+
+density.3days<-ggplot(festival.data.stack, aes(score))+
+  geom_density(aes(group=day, fill=day), alpha=0.5)+
+  facet_grid(~gender)
+density.3days     
+```
+
+
+## Exercise 2:
+
+Plot a stripchart representing all 3 days and each gender
+
+```{r}
+stripchart <-ggplot(festival.data.stack, aes(gender, score, colour=gender))+ 
+	facet_grid(~day)+
+	geom_point(position="jitter")+
+	scale_colour_manual(values=c("darkorange", "darkorchid4"))+ 
+	stat_summary(geom='errorbar',fun.y=mean, aes(ymin=..y.., ymax=..y..), 
+		colour="black", width=0.8, size=1.5)+
+            labs(x="Gender", y="Score")+
+            theme(legend.position = "none")
+stripchart
+```
+
+From a stripchart, we can add a line for the mean or any other descriptive geom as a stat summary.
+
+```{r}
+stripchart<-ggplot(festival.data.stack, aes(gender, score,colour=gender))+facet_grid(~day)+
+  geom_point(position="jitter")+
+  scale_colour_manual(values=c("darkorange", "darkorchid4"))+
+  labs(x="Gender", y="Score")+
+  theme(legend.position = "none")
+  
+stripchart
+```
+
+We saw how to add a mean:
+
+```{r}
+stripchart+
+  stat_summary(fun.y="mean",geom="errorbar", aes(ymin=..y.., ymax=..y..), width=0.8, colour="black", size = 1.3)
+  
+  
+```
+
+Now let's add a boxplot.
+
+```{r}
+stripchart+
+  geom_boxplot(alpha=0, colour="black")
+
+```
+
+We can make it prettier.
+
+```{r}
+stripchart+
+  geom_boxplot(aes(gender, score, fill=gender), alpha=0.5, colour="black")+
+    scale_fill_manual(values=c("darkorange", "darkorchid4"))
+ 
+```
+
+Speaking of making graphs prettier, we can improve on the boxplot.
+
+# Boxplot
+
+We can change order on the x-axis if we want:
+
+boxplot+scale_x_discrete(limits=c("Male","Female"))
+
+```{r}
+boxplot<-ggplot(festival.data.stack, aes(gender,score))+
+  geom_boxplot()+
+  facet_grid(~day)
+
+boxplot
+```
+
+```{r}
+boxplot <-ggplot(festival.data.stack, aes(gender,score, fill=gender))+
+	facet_grid(~day)+
+	stat_boxplot(geom="errorbar", width=0.5)+	
+	geom_boxplot(outlier.shape=8)+
+	theme(legend.position = "none")+
+	scale_fill_manual(values=c("sienna1","darkorchid3 "))+
+	labs(x="Gender", y="Score")
+boxplot
+```
+
+
+# Violinplot (beanplot)
+
+```{r}
+stripchart+
+  geom_violin(alpha=0, colour="black")
+```
+
+Basic command
+
+```{r}
+violinplot<-ggplot(festival.data.stack, aes(gender,score))+geom_violin()+facet_grid(~day)
+violinplot
+```
+
+Prettier: 
+
+```{r}
+violinplot<-ggplot(festival.data.stack, aes(gender,score,fill=gender))+
+		facet_grid(~day)+
+		geom_violin(trim = FALSE)+
+		scale_fill_manual(values=c("goldenrod2","darkgrey"))+
+		theme(legend.position="none")+
+		stat_summary(fun.y=median, geom="point", size=2, color="black")+
+		labs(x="Gender", y="Hygiene scores")
+violinplot
+
+```
+
+```{r}
+violinplot+geom_boxplot(width=0.3)
+```
+
+```{r}
+violinplot+geom_jitter(width=0.1,size=1, shape=1)
+```
+
+# Barchart
+
+First we want to calculate the means and sem and store the values in a file.
+
+```{r}
+festival.data.stack %>%
+    group_by(gender,day) %>%
+      summarise(mean=mean(score), sem=sd(score)/sqrt(n())) -> score.sem
+
+score.sem
+```
+
+```{r}
+barchart<-ggplot(score.sem, aes(day,mean, fill=gender))+
+  geom_bar(stat="identity")
+barchart
+```
+
+```{r}
+barchart<-ggplot(score.sem, aes(day,mean, fill=gender))+
+  geom_bar(stat="identity", position="dodge")+
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position="dodge")
+barchart
+```
+
+```{r}
+barchart<-ggplot(score.sem, aes(day,mean, fill=gender))+
+  geom_bar(position="dodge", stat="identity")+
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position="dodge")
+barchart
+```
+```{r}
+barchart<-ggplot(score.sem, aes(day,mean, fill=gender))+
+  geom_bar(position="dodge", colour="black",stat="identity",size=1)+
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.5, position=position_dodge(0.9), size=1)+
+  ylab("Mean scores")+ 
+  ggtitle("Levels of hygiene over 3 days of concert")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(plot.title = element_text(size = 19))+
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values=c("darkorange3", "darkorchid4"), name="Gender")
+barchart
+```
+
+So beautiful!
+
+# Linegraph
+
+```{r}
+linegraph<-ggplot(score.sem, aes(day, mean, group=gender))+
+	geom_line()+
+	geom_point()+
+	geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem))
+
+linegraph
+```
+
+```{r}
+linegraph<-ggplot(score.sem, aes(day,mean, colour=gender, group=gender))+
+  geom_line(size=1.5)+
+  geom_point(size=4)+
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, size=1.5)
+linegraph
+```
+
+Change the position of the legend.
+
+```{r}
+linegraph<-ggplot(score.sem, aes(day,mean, colour=gender, group=gender))+
+  geom_line(size=1.5)+
+  geom_point(size=5)+
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, size=1.5)+
+  labs(x="", y="Mean scores")+
+  scale_y_continuous(breaks=seq(0, 2, 0.2))+
+  ggtitle("Levels of hygiene over 3 days of concert")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_colour_manual(values=c("purple","darkorange3"), name="")+
+  theme(legend.position = c(0.85, 0.9))+
+  theme(legend.text=element_text(size=14))+
+  theme(legend.background = element_rect(fill = "transparent"))
+
+linegraph
+```
+
+## Exercise 3:
+
+The file contains positional count data for 3 different datasets (a WT and two mutants). 
+
+Plot a graph showing all 3 datasets on the same plot
+
+Load: "chromosome_position_data.txt "
+Check the structure of the file
+Restructure the file from wide to long format gather()
+Rename the column: "Genotype" and "Value"
+Plot a basic line graph
+
+```{r}
+chromosome<-read_tsv("chromosome_position_data.txt")
+chromosome
+
+```
+
+```{r}
+chromosome %>%
+  gather(Genotype, Value,-Position) -> chromosome.long
+chromosome.long
+
+```
+
+
+```{r}
+chromosome.linegraph<-ggplot(chromosome.long, aes(x=Position, y=Value, group=Genotype, colour=Genotype))+
+geom_line(size=2)
+chromosome.linegraph
+
+```
+
+## Exercise 4:
+
+Plot a graph showing the relationship between age and weight for a typical baby
+ over the first 9 months.
+
+Load: weight_chart.txt 
+Check the structure of the file
+Plot a basic line graph
+Plot a prettier version:
+Change the size and the colour of the points
+Change the thickness and the colour of the line
+Change the y-axis: scale from 2 to 10 kgs
+Change the x-axis: scale from 0 t 10 months
+Change the labels on both the axis
+Add a title to the graph
+
+
+```{r}
+weight<-read_tsv("weight_chart.txt")
+weight
+
+```
+
+Basic graph:
+
+```{r}
+weight.linegraph<-ggplot(weight, aes(Age, Weight))+
+  geom_line()+
+  geom_point()
+weight.linegraph
+
+```
+
+Pretty graph:
+
+```{r}
+weight.linegraph<-ggplot(weight, aes(Age, Weight))+
+ geom_line(size=1, colour="lightblue2")+
+ geom_point(shape=16, size=3, colour="darkorchid1")+
+  scale_y_continuous(breaks=2:10, limits = c(2, 10))+
+  scale_x_continuous(breaks=0:10, limits = c(0, 10))+
+  labs(x="Age (months)", y="Weight (kg)")+
+  ggtitle("Relation between age and weight")+
+  theme(plot.title = element_text(hjust = 0.5))
+weight.linegraph
+
+```
+
+## Exercise 5: 
+
+The file brain_bodyweight.txt contains data for the log10 brain and bodyweight for a range of species, along with an SEM measure for each point. 
+
+Plot these data on a scatterplot with error bars showing  the mean +/- SEM and the names of the datasets under each point. 
+
+Load: brain_bodyweight.txt 
+Check the structure of the file
+Plot a basic graph. You will need:
+geom_barh() for the horizontal error bars
+geom_text() for the labels
+
+Plot a prettier version.
+
+```{r}
+brain.bodyweight<- read_tsv("brain_bodyweight.txt")
+brain.bodyweight
+
+```
+
+Basic
+
+```{r}
+brain.bodyweight.graph<-ggplot(brain.bodyweight, aes(x=Bodyweight, y=Brainweight))+
+  geom_point()+
+  geom_errorbar(aes(ymin=Brainweight-Brainweight.SEM, ymax=Brainweight+Brainweight.SEM))+
+  geom_errorbarh(aes(xmin=Bodyweight-Bodyweight.SEM, xmax=Bodyweight+Bodyweight.SEM))+
+  geom_text(aes(label=Species), hjust = 1.05, vjust = -0.6, size=2.7)
+brain.bodyweight.graph
+
+```
+
+
+```{r}
+brain.bodyweight.graph<-ggplot(brain.bodyweight, aes(x=Bodyweight, y=Brainweight))+
+  geom_point()+
+  geom_errorbar(aes(ymin=Brainweight-Brainweight.SEM, ymax=Brainweight+Brainweight.SEM), width=.1, size=1, colour="tomato3")+
+  geom_errorbarh(aes(xmin=Bodyweight-Bodyweight.SEM, xmax=Bodyweight+Bodyweight.SEM), height=.1, size=1, colour="tomato3")+
+  geom_point(size=2)+
+  geom_text(aes(label=Species), hjust = 1.1, vjust = -0.6, size=2.7)
+brain.bodyweight.graph
+
+```
+
+Prettier with ggrepel
+
+```{r}
+library("ggrepel")
+ggplot(brain.bodyweight, aes(x=Bodyweight, y=Brainweight))+
+  geom_errorbar(aes(ymin=Brainweight-Brainweight.SEM, ymax=Brainweight+Brainweight.SEM), 
+width=.1, size=0.5, colour="grey28")+
+  geom_errorbarh(aes(xmin=Bodyweight-Bodyweight.SEM, xmax=Bodyweight+Bodyweight.SEM), 
+height=.1, size=0.5, colour="grey28")+
+  geom_point(shape=21, size=3, colour="black", fill="maroon3")+
+  geom_label_repel(aes(label = Species), box.padding=0.6, point.padding =0.5, 
+fill="mintcream", segment.colour="grey", size=3) -> brain.bodyweight.graph
+brain.bodyweight.graph
+
+```
+
+# Stacked bar: categorical data
+
+```{r}
+Changing<-read_csv("Changing.csv")
+Changing
+```
+
+
+Basic
+
+```{r}
+stackedBar<-ggplot(Changing, aes(Type.of.Behaviour, Sample.Size, fill=Stage.of.Change))+
+geom_bar(stat="identity")
+stackedBar
+
+```
+
+Changing the order of the levels: factor(variable name, levels = c("", "" .))
+
+Rotate the graph to read the x-axis labels:  coord_flip()
+
+
+```{r}
+Changing$Stage.of.Change <- factor(Changing$Stage.of.Change, levels = c("Maintenance","Action","Preparation","Contemplation","Precontemplation"))
+
+stackedBar<-ggplot(Changing, aes(Type.of.Behaviour, Sample.Size, fill = Stage.of.Change))+
+  geom_bar(stat="identity", colour="black")+
+  coord_flip()
+stackedBar
+```
+
+Prettier: 
+
+```{r }
+stackedBar<-stackedBar+
+  labs(title="Stages for Each of the 12 Problem Behaviours", y="Sample Size", fill="Stages of Change")+
+  theme(plot.title = element_text(hjust = 0.5, size=12, face="bold"))+
+  theme(axis.title.y=element_blank())+
+  scale_fill_brewer(palette = 4)+
+  theme(axis.text.x = element_text(size=10), axis.text.y = element_text(size=9))+
+   theme(legend.text=element_text(size=8), legend.title=element_text(size=10, face="bold"))+
+  theme(axis.title.x = element_text(size=10))
+stackedBar
+```
+
+With a divergent palette
+
+```{r}
+stackedBar+scale_fill_brewer(palette="RdYlGn", direction=-1)	
+
+```
+
+## Exercise 6
+
+Let's plot the same data but as percentages
+
+Plot the Changing data as percentages.
+
+Change the format of the file into contingency xtabs()
+Calculate the percentages prop.table()
+Change the format into a dataframe  as.data.frame()
+Check your file head()
+Plot the data as before using a suitable divergent palette
+
+
+```{r}
+contingency.table100<-prop.table(xtabs(Sample.Size~Type.of.Behaviour+Stage.of.Change, Changing),1)*100
+contingency.table100
+```
+
+
+```{r}
+Changing.percent<-as.data.frame(contingency.table100)
+Changing.percent
+
+```
+
+Plot the data as percentages.
+
+```{r}
+stackedBar.percent<-ggplot(Changing.percent,aes(Type.of.Behaviour, Freq, fill = Stage.of.Change))+
+		geom_bar(stat="identity",colour="black")+
+    coord_flip()+
+		scale_fill_brewer(palette = "Spectral", direction=-1)+
+		labs(title="Stages for Each of the 12 Problem Behaviours", y="Frequencies")+
+    theme(axis.title.y=element_blank())+
+		theme(plot.title = element_text(hjust = 0.5, size=12, face="bold"))+
+    theme(axis.text.x = element_text(size=10), axis.text.y = element_text(size=9))+
+    theme(legend.text=element_text(size=8), legend.title=element_text(size=10, face="bold"))+
+    theme(axis.title.x = element_text(size=10))
+stackedBar.percent
+
+```
+
+
+### To save a graph
+
+Linegraph.saved<-ggsave(Linegraph, file="Line.png")
