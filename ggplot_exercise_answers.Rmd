@@ -1,0 +1,535 @@
+---
+title: "Plotting figures with ggplot"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float: true
+---
+
+This is a worked set of answers to the ggplot course
+
+Exercise 1 - Simple point and line plots
+========================================
+
+First we are going to load the main tidyverse library.
+
+```{r}
+library(tidyverse)
+```
+
+
+Weight chart
+------------
+
+We'll plot out the data in the ```weight_chart.txt``` file.  Let's load it and look first.
+
+```{r}
+read_tsv("weight_chart.txt") -> weight
+
+weight
+```
+
+We'll start with a simple plot, just setting the minimum aesthetics.
+
+```{r}
+weight %>%
+  ggplot(aes(x=Age, y=Weight)) +
+  geom_point()
+```
+
+Now we can customise this a bit by adding fixed aesthetics to the ```geom_point()``` function.
+
+```{r}
+weight %>%
+  ggplot(aes(x=Age, y=Weight)) +
+  geom_point(size=3, colour="blue2")
+```
+
+Now repeat but with a different geometry.
+
+```{r}
+weight %>%
+  ggplot(aes(x=Age, y=Weight)) +
+  geom_line()
+```
+
+Finally, combine the two geometries.
+
+```{r}
+weight %>%
+  ggplot(aes(x=Age, y=Weight)) +
+  geom_line()+
+  geom_point(size=3, colour="blue2")
+```
+
+Chromosome position
+-------------------
+
+Now let's look at the ```chromosome_position_data.txt``` file.
+
+```{r}
+read_tsv("chromosome_position_data.txt") -> chr.data
+
+head(chr.data)
+```
+
+We have the data in three separate columns at the moment so we need to use ```pivot_longer``` to put them into a single column.
+
+```{r}
+chr.data %>%
+  pivot_longer(cols=-Position, names_to = "sample", values_to = "value") -> chr.data
+
+head(chr.data)
+```
+
+Now we can plot out a line graph of the position vs value for each of the samples.  We'll use colour to distiguish the lines for each sample.
+
+```{r}
+chr.data %>%
+  ggplot(aes(x=Position, y=value, colour=sample)) +
+  geom_line(size=1)
+```
+
+Genomes
+-------
+
+Finally we're going to look at the genome size vs number of chromosomes and colour it by domain in our genomes data.
+
+```{r}
+read_csv("genomes.csv") -> genomes
+
+head(genomes)
+```
+
+To get at the ```Domain``` we'll need to split apart the Groups field.
+
+```{r}
+genomes %>%
+  separate(col=Groups, into=c("Domain","Kingdom","Class"), sep=";") -> genomes
+
+head(genomes)
+```
+
+Now we can draw the plot.
+
+```{r}
+genomes %>%
+  ggplot(aes(x=log10(Size),y=Chromosomes, colour=Domain)) +
+  geom_point()
+```
+
+Exercise 2 - Barplots and Distributions
+=======================================
+
+Small file
+----------
+
+We want a barplot of the lengths of samples in category A.
+
+
+```{r}
+read_tsv("small_file.txt") -> small.file
+
+head(small.file)
+```
+
+Since there is only one measure per sample there is no summarisation to be done so we use ```geom_col``` rather than ```geom_bar```.
+
+```{r}
+small.file %>%
+  filter(Category=="A") %>%
+  ggplot(aes(x=Sample,y=Length)) +
+  geom_col()
+```
+
+
+Next we want a stripchart (```geom_jitter```) of all of the lengths for each category.  We need to use ```height=0``` in the ```geom_jitter``` to ensure that we don't adjust the height of the points, only their width.
+
+```{r}
+small.file %>%
+  ggplot(aes(x=Category, y=Length)) +
+  geom_jitter(height=0)
+```
+
+Whilst this worked it's not very easy to tell the categories apart so we'll tweak it to make it clearer.
+
+```{r}
+small.file %>%
+  ggplot(aes(x=Category, y=Length, colour=Category)) +
+  geom_jitter(height=0, width=0.3, show.legend = FALSE, size=4)
+```
+
+Expression
+----------
+
+Plot the distribution of expression values.
+
+```{r}
+read_tsv("expression.txt") -> expression
+
+head(expression)
+```
+
+Let's try the plots in a couple of ways.
+
+```{r}
+expression %>%
+  ggplot(aes(Expression)) +
+  geom_histogram(fill="yellow",colour="black")
+```
+
+```{r}
+expression %>%
+  ggplot(aes(Expression)) +
+  geom_density(fill="yellow",colour="black")
+```
+
+We could also play around with the resolution in either of these plots.
+
+Either increasing the resolution:
+
+```{r}
+expression %>%
+  ggplot(aes(Expression)) +
+  geom_histogram(fill="yellow",colour="black", binwidth = 0.2)
+```
+
+..or decreasing it.
+
+```{r}
+expression %>%
+  ggplot(aes(Expression)) +
+  geom_density(fill="yellow",colour="black", bw=2)
+```
+
+
+Cancer
+------
+
+Plot the number of male deaths for all sites.
+
+```{r}
+read_csv("cancer_stats.csv") -> cancer
+head(cancer)
+```
+
+```{r}
+cancer %>%
+  ggplot(aes(x=Site, y=`Male Deaths`)) + 
+  geom_col()
+```
+
+
+We can't see all of the labels as there isn't enough space.  We'll fix this later, but for now let's just show the 5 highest.
+
+
+```{r}
+cancer %>%
+  arrange(desc(`Male Deaths`)) %>%
+  slice(1:5) %>%
+  ggplot(aes(x=Site, y=`Male Deaths`)) + 
+  geom_col()
+```
+
+Now it works, but even though we fed it sorted data the plot still comes out in alphabetical order.
+
+
+Child variants
+--------------
+
+Plot the MutantRead distributions for good (QUAL==200) and bad (QUAL<200) variants.
+
+
+```{r}
+read_csv("Child_Variants.csv", guess_max = 1000000) -> child
+
+head(child)
+```
+
+We need to make the good/bad category column.
+
+```{r}
+child %>%
+  mutate(`Good or not` = if_else(QUAL==200,"Good","Bad")) -> child
+
+head(child)
+```
+
+Now we can plot it.  I did it on a log scale to make it a bit easier to look at.
+
+```{r}
+child %>%
+  ggplot(aes(x = `Good or not`, y=log2(MutantReads))) +
+  geom_violin(fill="yellow", colour="black")
+```
+
+
+
+Exercise 3 - Annotation, Scaling and Colours
+============================================
+
+Themes
+------
+
+Set a theme and then redraw some stuff to see that it changes.
+
+
+```{r}
+theme_set(theme_bw(base_size=16))
+```
+
+```{r}
+child %>%
+  ggplot(aes(x = `Good or not`, y=log2(MutantReads))) +
+  geom_violin(fill="yellow", colour="black") 
+```
+
+Yes, that definitely looks different, as will every plot from now on.  If we wanted to change it for a specific plot then we could easily do that too.
+
+```{r}
+child %>%
+  ggplot(aes(x = `Good or not`, y=log2(MutantReads))) +
+  geom_violin(fill="yellow", colour="black") +
+  theme_dark()
+```
+
+
+Cancer
+------
+
+Redraw the previous bargraph but with the axes flipped so we can see all of the categories and we don't have to filter them.  I'm also going to order the results by the data to make the plot clearer, and I've removed the cancers which males can't get.
+
+
+```{r fig.height=7, fig.width=5}
+cancer %>%
+  filter(!is.na(`Male Deaths`)) %>%
+  ggplot(aes(x=reorder(Site,`Male Deaths`), y=`Male Deaths`)) + 
+  geom_col() +
+  xlab("Site")+
+  coord_flip()
+```
+
+Brain Bodyweight
+----------------
+
+Plot a scatterplot of brainweight vs bodyweight and make various customisations.
+
+* Put the title in the centre
+
+* Make the axes log scale
+
+* Colour by Category but using a ColorBrewer palette
+
+* Change the ordering of the categories
+
+
+```{r}
+read_tsv("brain_bodyweight.txt") -> brain
+
+head(brain)
+```
+
+
+```{r fig.height=7, fig.width=9}
+brain %>%
+  mutate(Category=factor(Category,levels=c("Domesticated","Wild","Extinct"))) %>%
+  ggplot(aes(x=brain, y=body, colour=Category))+
+  geom_point(size=4)+
+  ggtitle("Brain vs Body weight")+
+  xlab("Brainweight (g)") +
+  ylab("Bodyweight (kg)") +
+  scale_y_log10() +
+  scale_x_log10() +
+  scale_colour_brewer(palette = "Set1")
+```
+
+Finally do a barplot of all species showing their brainweight, but coloured by their bodyweight and using a custom colour scheme.
+
+```{r}
+brain %>%
+  ggplot(aes(x=Species, y=brain, fill=log(body))) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_gradientn(colours=c("blue2","purple", "green2","red2","yellow"))
+  
+```
+
+
+Exercise 4 - Summary Overlays
+=============================
+
+Tidy1
+-----
+
+Plot a stripchart with t boxplot overlay to summarise the data in the 4 categories.
+
+```{r}
+read_csv("tidy_data1.csv") -> tidy1
+
+tidy1
+```
+
+First we restructure the data
+
+```{r}
+tidy1 %>%
+  pivot_longer(cols=everything(), names_to = "sample", values_to = "value") %>%
+  filter(!is.na(value)) -> tidy1
+
+tidy1
+```
+
+Now we can do the plotting
+
+```{r}
+tidy1 %>%
+  ggplot(aes(x=sample, y=value,colour=sample)) +
+  geom_boxplot(color="grey", size=2) +
+  geom_jitter(height=0, width=0.15, show.legend = FALSE, size=5)
+```
+
+We can do the same thing but just showing a mean bar instead of a full boxplot.
+
+```{r}
+tidy1 %>%
+  ggplot(aes(x=sample, y=value,colour=sample)) +
+  stat_summary(geom="errorbar", fun=mean, fun.max = mean, fun.min=mean, colour="grey", size=2) +
+  geom_jitter(height=0, width=0.15, show.legend = FALSE, size=5)
+```
+
+
+
+Now we can plot the sample thing as a barplot.
+
+```{r}
+tidy1 %>%
+  ggplot(aes(x=sample, y=value)) +
+  geom_bar(stat="summary", fun=mean, fill="yellow",color="grey", size=2) + 
+  stat_summary(geom="errorbar", width=0.3, color="grey", size=2)
+```
+
+We could also have done the same thing using pre-calculated values.  We'll use the STDEV instead of the SEM.
+
+```{r}
+tidy1 %>%
+  group_by(sample) %>%
+  summarise(mean=mean(value),stdev=sd(value)) -> tidy1.summary
+
+tidy1.summary
+```
+
+```{r}
+tidy1.summary %>%
+  ggplot(aes(x=sample, y=mean, ymin=mean-stdev, ymax=mean+stdev)) +
+  geom_col(fill="yellow",color="grey", size=2) +
+  geom_errorbar(size=2, colour="grey", width=0.3)
+```
+
+
+Exercise 5 - Faceting and Highlighting
+======================================
+
+Up down expression
+------------------
+
+Plot out a scatterplot of the two datasets against each other and customise the colouring.
+
+
+```{r}
+read_tsv("up_down_expression.txt") -> up.down
+
+head(up.down)
+```
+
+Let's do a simple, uncustomised plot first.
+
+```{r}
+up.down %>%
+  ggplot(aes(x=Condition1, y=Condition2, colour=State)) +
+  geom_point(size=0.5)
+```
+
+Now let's improve the appearance and add some custom labels.
+
+
+
+```{r}
+up.down %>%
+  filter(Condition1 > -1 & Condition2 > -1 & abs(Condition1 - Condition2) > 3) -> up.down.interesting
+
+up.down.interesting
+```
+
+
+```{r fig.height=7, fig.width=7}
+library(ggrepel)
+up.down %>%
+  ggplot(aes(x=Condition1, y=Condition2, colour=State, label=Gene)) +
+  geom_point(size=1.5) +
+  scale_colour_manual(values=c("blue2","grey","red2")) +
+  theme(legend.position="none") +
+  geom_abline(slope = 1, intercept = 0, colour="darkgrey", size=1) +
+  geom_text_repel(data=up.down.interesting,col="black", box.padding = 1)
+```
+
+
+Download Festival
+-----------------
+
+Clean up the data (restructure and remove NA values)
+
+Draw a stripchart of cleanliness for males and females and facet by the day of the festival.  Colour the males and females differently and add a line to show the mean values.
+
+
+```{r}
+read_csv("DownloadFestival.csv") -> festival
+
+head(festival)
+```
+
+```{r}
+festival %>%
+  pivot_longer(cols=starts_with("day"), names_to = "day", values_to = "cleanliness") %>%
+  filter(!is.na(cleanliness)) -> festival
+
+head(festival)
+```
+
+
+Now we can plot it out.
+
+```{r}
+festival %>%
+  ggplot(aes(x=gender, y=cleanliness, colour=gender)) +
+  geom_jitter(height=0, width=0.3, alpha=0.5, stroke=NA) +
+  scale_colour_manual(values = c("blue2","red2")) +
+  stat_summary(geom="errorbar", fun = mean, fun.max = mean, fun.min = mean, colour="darkgrey", size=3) +
+  facet_grid(cols=vars(day))
+```
+
+Finally we can draw the plot above but split by both day and attendance
+
+```{r}
+festival %>%
+  group_by(ticknumb) %>%
+  count() %>%
+  right_join(festival) %>%
+  rename(attended=n) -> festival
+
+head(festival)
+```
+
+```{r fig.width=7, fig.height=7}
+festival %>%
+  ggplot(aes(x=gender, y=cleanliness, colour=gender)) +
+  geom_jitter(height=0, width=0.3, alpha=0.5, stroke=NA) +
+  scale_colour_manual(values = c("blue2","red2")) +
+  stat_summary(geom="errorbar", fun.y = mean, fun.ymax = mean, fun.ymin = mean, colour="darkgrey", size=3) +
+  facet_grid(cols=vars(day), rows=vars(attended))
+```
+
+
+
+
+

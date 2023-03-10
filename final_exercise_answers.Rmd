@@ -1,0 +1,264 @@
+---
+title: "Final Tidyverse Exercise"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float: true
+---
+```{r}
+library(tidyverse)
+```
+
+
+Loading Data
+============
+
+We have three data files, a set of methylation values, a set of expression values and some annotation.
+
+```{r}
+read_tsv("methylation.txt") -> meth
+head(meth)
+```
+
+```{r}
+read_tsv("expression.txt") -> expression
+head(expression)
+```
+
+For the annotation we have a problem reading the chromsomes because the text chromosomes come so late in the file.  We'll increase the ```guess_max``` to fix this.
+
+```{r}
+read_tsv("final_annotation.txt", guess_max=1000000) -> annot
+head(annot)
+```
+
+Combining data together
+=======================
+
+We want to bring the data from the three different files together.  To do this we'll need to use ```join``` functions to combine the tables.  In the end we're only going to be interested in genes which have data in all of the different files so we'll be using ```inner_join```.
+
+Before we start joining tables we need to sort out the methylation data.  At the moment we have duplicated gene names because we have combined methylation values for two different regions, gene body and promoter.  To get this to a structure of one line per gene we need to spread the Region and Methylation columns.
+
+To make the join with the expression data easier we're also going to change the name of the Gene column from Probe to Gene.
+
+```{r}
+meth %>%
+  spread(key = Region, value = Methylation) %>%
+  rename(Gene=Probe)-> meth
+
+head(meth)
+```
+
+We also need to change the column name on the annotation data so they all say "Gene"
+
+```{r}
+annot %>%
+  rename(Gene = Probe) -> annot
+
+head(annot)
+```
+
+
+
+Now we can combine this with the expression and annotation tibbles to get a combined dataset.
+
+```{r}
+meth %>%
+  inner_join(expression) %>%
+  inner_join(annot) -> combined
+
+head(combined)
+```
+
+
+Clean up the data
+=================
+
+We're going to apply some filters to clean up the data.  We'll get rid of:
+
+1. Any gene smaller than 10kb
+2. Any gene whose promoter methylation is -1
+3. Any gene whose name starts with Gm
+
+```{r}
+combined %>%
+  filter(abs(End - Start) < 10000) %>%
+  filter(Promoter != -1) %>%
+  filter(substr(Gene,1,2) != "Gm") -> combined
+
+```
+
+Do some summarisations
+======================
+
+We want to calculate some summary values from the data.  We want to know the average expression , promoter and gene body meth and number of genes per chromosome.
+
+To do this we ```group_by``` chromsome and then use ```summarise``` to calculate the mean values.  The number of genes can be obtained with ```n()```
+
+```{r}
+combined %>%
+  group_by(Chromosome) %>%
+  summarise(
+    number_of_genes=n(), 
+    Expression = mean(Expression),
+    Promoter = mean(Promoter),
+    Gene_body = mean(Gene_body))
+```
+
+We'd also like to see a tibble with the count of genes on the + and - strands per chromosome and the difference between the two.
+
+We can get the count of genes on each strand by grouping by strand and chromosome, using ```spread``` to put the + and - counts into different columns and then using ```mutate``` to get the difference.
+
+```{r}
+combined %>%
+  group_by(Chromosome, Strand) %>%
+  count() %>%
+  spread(key = Strand, value=n) %>%
+  mutate(Diff=`-` - `+`)
+```
+
+Adding highly expressed column
+==============================
+
+We want to add a new column to the combined data to say if a gene is highly expressed (expression is > 0).  We can do this with ```mutate``` and ```if_else```
+
+```{r}
+combined %>%
+  mutate(high_expressed=if_else(Expression > 0,"Yes","No")) -> combined
+
+head(combined)
+```
+
+
+Summarise based on expression
+=============================
+
+We want to find the median methylation for gene bodies and promoters for genes which are and aren't highly expressed.  This will involve grouping by the new variable we created and then summarising.
+
+```{r}
+combined %>%
+  group_by(high_expressed) %>%
+  summarise(Gene_body = median(Gene_body), Promoter = median(Promoter))
+```
+
+Highly expressed gene bodies show much greater methylation than ones which are lowly expressed.
+
+Plotting Distributions
+======================
+
+We want to plot out the methylation and expression datasets.  We can do this from the combined data we already have.
+
+Methylation - Gene Bodies
+-------------------------
+
+```{r}
+combined %>%
+  ggplot(aes(Gene_body)) +
+  geom_density(fill="yellow")+
+  xlab("Gene Body Methylation (%)")+
+  ggtitle("Gene Body Methylation Distribution")
+```
+
+Methylation - Promoters
+-----------------------
+
+```{r}
+combined %>%
+  ggplot(aes(Promoter)) +
+  geom_density(fill="yellow")+
+  xlab("Promoter Methylation (%)")+
+  ggtitle("Promoter Methylation Distribution")
+```
+
+Expression
+----------
+
+```{r}
+combined %>%
+  ggplot(aes(Expression)) +
+  geom_density(fill="yellow")+
+  xlab("Expression (log2RPM)")+
+  ggtitle("Expression Distribution")
+```
+
+Gene body methylation per chromosome
+====================================
+
+We want to plot the mean methylation per chromosome from the original methylation data.
+
+```{r}
+meth %>%
+  inner_join(annot) %>%
+  group_by(Chromosome) %>%
+  summarise(meth=mean(Gene_body)) %>%
+  ggplot(aes(x=Chromosome,y=meth))+
+  geom_col()+
+  coord_flip()
+```
+
+Plot a stripchart, split by chromosome of the promoter methylation for the 500 highest expressed genes.
+
+```{r}
+combined %>%
+  top_n(n=500,wt=Expression) %>%
+  ggplot(aes(x=Chromosome, y=Promoter)) +
+  geom_jitter(height=0, width=0.1)
+```
+ We can do the same for the lowest genes:
+
+
+```{r}
+combined %>%
+  top_n(n=500,wt=-Expression) %>%
+  ggplot(aes(x=Chromosome, y=Promoter)) +
+  geom_jitter(height=0, width=0.1)
+```
+
+We can see that high promoter methylation is more prevalent in low expressed genes than high ones.
+
+
+Plotting Comparisons
+====================
+
+Plot the relationship between Promoter meth and Gene meth, coloured by Expression.
+
+
+```{r}
+combined %>%
+  ggplot(aes(x=Promoter, y=Gene_body, colour=Expression))+
+  geom_point(size=1)+
+  scale_colour_gradientn(colours=c("blue2","white","red2"))
+```
+
+Plot out the relationship between expression and gene body methylation as a scatterplot.
+
+```{r}
+combined %>%
+  ggplot(aes(x=Promoter, y=Expression))+
+  geom_point(size=1, colour="grey")+
+  geom_density2d(color="black",size=1)
+```
+
+Draw violin plots for the distributions of gene body methylation for high and low expressed genes.
+
+```{r}
+combined %>%
+  ggplot(aes(x=high_expressed, y=Gene_body)) +
+  geom_violin(fill="yellow")
+```
+
+Finally, draw a barplot showing mean gene body methylation +/- stdev for high and low expressed genes.
+
+```{r}
+combined %>%
+  group_by(high_expressed) %>%
+  summarise(meth=mean(Gene_body), stdev=sd(Gene_body)) %>%
+  ggplot(aes(x=high_expressed, y=meth, ymin=meth-stdev, ymax=meth+stdev)) +
+  geom_col(fill="yellow", colour="black")+
+  geom_errorbar(width=0.3)+
+  ylab("Methylation Level (%)")+
+  coord_cartesian(ylim=c(0,100))
+  
+```
+
